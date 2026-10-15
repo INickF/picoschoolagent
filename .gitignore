@@ -1,0 +1,3 @@
+build/
+# Signing key: keep a backup outside git, every update must be signed with it.
+agent.keystore
