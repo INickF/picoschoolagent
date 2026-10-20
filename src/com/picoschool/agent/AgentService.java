@@ -22,16 +22,19 @@ import org.json.JSONObject;
  * GET  /api/apps     launchable apps
  * POST /api/launch   {"package": "...", "closePrevious": true}
  * POST /api/close    {"package": "..."} or {} for the foreground app, {"all": true} for every app
+ * POST /api/install  {"url": "http://pc/..."}  download that APK and install it (job, see status.job)
+ * POST /api/uninstall {"package": "..."}       delete a user app (job, see status.job)
  * </pre>
  */
 public final class AgentService extends Service {
     static final int PORT = 3350;
-    static final String VERSION = "1.4";
+    static final String VERSION = "1.5";
     private static final String TAG = "PicoAgent";
     private static final String CHANNEL = "agent";
 
     private HttpServer server;
     private AppControl apps;
+    private PackageOps packages;
 
     static void start(Context ctx) {
         ctx.startForegroundService(new Intent(ctx, AgentService.class));
@@ -42,6 +45,7 @@ public final class AgentService extends Service {
         super.onCreate();
         startForeground(1, buildNotification());
         apps = new AppControl(this);
+        packages = new PackageOps(this, apps);
         server = new HttpServer(PORT, this::route);
         server.start();
         Log.i(TAG, "agent started");
@@ -55,6 +59,7 @@ public final class AgentService extends Service {
     @Override
     public void onDestroy() {
         if (server != null) server.stop();
+        if (packages != null) packages.stop();
         super.onDestroy();
     }
 
@@ -92,6 +97,15 @@ public final class AgentService extends Service {
             Log.i(TAG, "close " + closed);
             return out.put("package", closed == null ? JSONObject.NULL : closed);
         }
+        if (path.equals("/api/install") && post) {
+            Log.i(TAG, "install " + body.optString("url"));
+            return out.put("job", packages.install(body.optString("url", "")));
+        }
+        if (path.equals("/api/uninstall") && post) {
+            String pkg = body.optString("package", "");
+            Log.i(TAG, "uninstall " + pkg);
+            return out.put("job", packages.uninstall(pkg));
+        }
         return null;
     }
 
@@ -106,6 +120,7 @@ public final class AgentService extends Service {
         JSONObject perms = new JSONObject()
                 .put("overlay", apps.canDrawOverlays())
                 .put("usage", apps.hasUsageAccess());
+        JSONObject job = packages.status();
         JSONObject foreground = fg == null ? null
                 : new JSONObject().put("package", fg).put("label", apps.label(fg));
 
@@ -118,6 +133,7 @@ public final class AgentService extends Service {
                 .put("charging", bm.isCharging())
                 .put("asleep", asleep)
                 .put("foreground", foreground == null ? JSONObject.NULL : foreground)
+                .put("job", job == null ? JSONObject.NULL : job)
                 .put("permissions", perms);
     }
 

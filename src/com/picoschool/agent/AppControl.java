@@ -194,14 +194,20 @@ final class AppControl {
      * A sleeping headset (nobody wearing it) keeps the VR app on top in a paused state, where neither Home nor
      * killBackgroundProcesses affect it. Turn the screen on briefly so the Home press takes effect.
      */
-    @SuppressWarnings("deprecation")
     private void wakeUp() {
+        wakeUp(6000);
+    }
+
+    /** Turns the screen on (if off) and keeps it on for {@code holdMs}. Returns true if it was off. */
+    @SuppressWarnings("deprecation")
+    boolean wakeUp(long holdMs) {
         PowerManager power = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
-        if (power.isInteractive()) return;
+        boolean wasOn = power.isInteractive();
         PowerManager.WakeLock lock = power.newWakeLock(
-                PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "PicoAgent:close");
-        lock.acquire(6000);
-        pause(1000);
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "PicoAgent:wake");
+        lock.acquire(holdMs);
+        if (!wasOn) pause(1000);
+        return !wasOn;
     }
 
     private void scheduleKill(String pkg) {
@@ -278,7 +284,7 @@ final class AppControl {
         return lastUserApp;
     }
 
-    private boolean isUserPackage(String pkg) {
+    boolean isUserPackage(String pkg) {
         try {
             return isUserApp(pm.getApplicationInfo(pkg, 0));
         } catch (PackageManager.NameNotFoundException e) {

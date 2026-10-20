@@ -38,10 +38,15 @@ $out = "$root\build"
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 New-Item -ItemType Directory "$out\classes", "$out\dex" | Out-Null
 
-# 1. Manifest -> base APK (no resources: labels and icons come from the framework).
-Run "$buildTools\aapt2.exe" @('link', '--manifest', "$root\AndroidManifest.xml", '-I', $androidJar,
+# 1. Manifest + res -> base APK. The only resource is the accessibility config; labels and icons come
+#    from the framework.
+New-Item -ItemType Directory "$out\res" | Out-Null
+$resFiles = Get-ChildItem "$root\res" -Recurse -File | ForEach-Object FullName
+Run "$buildTools\aapt2.exe" (@('compile', '-o', "$out\res") + $resFiles)
+$flat = Get-ChildItem "$out\res" -Filter *.flat | ForEach-Object FullName
+Run "$buildTools\aapt2.exe" (@('link', '--manifest', "$root\AndroidManifest.xml", '-I', $androidJar,
     '--min-sdk-version', '29', '--target-sdk-version', '32',
-    '--version-code', '5', '--version-name', '1.4', '-o', "$out\unsigned.apk")
+    '--version-code', '6', '--version-name', '1.5', '-o', "$out\unsigned.apk") + $flat)
 
 # 2. Java -> classes -> dex.
 $sources = Get-ChildItem "$root\src" -Recurse -Filter *.java | ForEach-Object FullName

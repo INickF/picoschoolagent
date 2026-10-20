@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- Installing / deleting apps through the system prompt (PackageOps). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Granted once over adb by setup.ps1 (appops), not by the user. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
@@ -30,7 +33,8 @@
             android:name=".AgentService"
             android:exported="false" />
 
-        <!-- Bound by the system at boot once enabled by setup.ps1; this is what restarts the agent on PICO. -->
+        <!-- Bound by the system at boot once enabled by setup.ps1; this is what restarts the agent on PICO.
+             It also confirms the install / delete prompts the agent opens itself. -->
         <service
             android:name=".AgentAccessibilityService"
             android:label="PICO School Agent"
@@ -39,6 +43,9 @@
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility" />
         </service>
 
         <receiver

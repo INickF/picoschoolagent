@@ -32,6 +32,8 @@ foreach ($d in $Devices) {
     & $adb -s $d shell appops set $pkg SYSTEM_ALERT_WINDOW allow
     # Detecting the current app needs usage access.
     & $adb -s $d shell appops set $pkg GET_USAGE_STATS allow
+    # Installing apps sent from the PC needs "install unknown apps".
+    & $adb -s $d shell appops set $pkg REQUEST_INSTALL_PACKAGES allow
     # Keep the service out of battery optimisation so it is not stopped in idle.
     & $adb -s $d shell dumpsys deviceidle whitelist +$pkg | Out-Null
     # PICO blocks BOOT_COMPLETED for third-party apps; an enabled accessibility service is bound by the
@@ -43,11 +45,22 @@ foreach ($d in $Devices) {
     & $adb -s $d shell settings put secure enabled_accessibility_services $enabled
     & $adb -s $d shell settings put secure accessibility_enabled 1
 
-    # PICO forbids starting third-party processes by broadcast, so start the agent through its activity.
-    $started = (& $adb -s $d shell am start -n "$pkg/.MainActivity") -join ' '
-    if ($started -match 'not started') {
-        Write-Host '   The headset refused to open the agent (boundary/setup screen showing?).' -ForegroundColor Yellow
-        Write-Host '   Put the headset on, finish the boundary setup, then run setup.ps1 again.' -ForegroundColor Yellow
+    # Enabling the accessibility service makes the system bind it, which starts the agent. Don't open
+    # MainActivity unless that failed: launching an activity makes PICO's store check the app's entitlement,
+    # and without internet it shows "No entitlement info in the local cache" and force-stops the agent
+    # (which also drops it from enabled_accessibility_services).
+    $running = $false
+    for ($i = 0; $i -lt 10 -and -not $running; $i++) {
+        Start-Sleep -Milliseconds 500
+        $running = [bool]((& $adb -s $d shell pidof $pkg) -join '').Trim()
+    }
+    if (-not $running) {
+        # PICO forbids starting third-party processes by broadcast, so fall back to the activity.
+        $started = (& $adb -s $d shell am start -n "$pkg/.MainActivity") -join ' '
+        if ($started -match 'not started') {
+            Write-Host '   The headset refused to open the agent (boundary/setup screen showing?).' -ForegroundColor Yellow
+            Write-Host '   Put the headset on, finish the boundary setup, then run setup.ps1 again.' -ForegroundColor Yellow
+        }
     }
 
     $ip = (& $adb -s $d shell ip -f inet addr show wlan0) -join ' ' -replace '.*inet (\d+\.\d+\.\d+\.\d+).*', '$1'
